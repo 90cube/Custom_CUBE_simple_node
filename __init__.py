@@ -1,6 +1,4 @@
-from .simple_text_node import SimpleTextNode
-from .combine_text_node import CombineTextNode
-from .wildcards import CLIPTextEncodeWithWildcards  # 🚀 기존 wildcards.py 추가!
+from .wildcards import CLIPTextEncodeWithWildcards
 
 class WildcardCategoryNode:
     def __init__(self):
@@ -21,16 +19,14 @@ class WildcardCategoryNode:
     RETURN_TYPES = ("STRING",)
     FUNCTION = "process"
 
-    CATEGORY = "wildcards"
+    CATEGORY = "CUBE Wildcards"
 
     def process(self, category, file, seed):
         return (self.wc_manager.read_wildcard(category, file, seed),)
 
 def register_custom_nodes():
     return [
-        SimpleTextNode(),
-        CombineTextNode(),
-        WildcardCategoryNode(),  # 🚀 기존 wildcards.py를 기반으로 한 노드 추가!
+        WildcardCategoryNode(),  # 🚀 폴더별 와일드카드 선택 노드 추가!
     ]
 
 NODE_CLASS_MAPPINGS = {

@@ -1,9 +1,9 @@
 import os
-import re
 import folder_paths
 
 class CLIPTextEncodeWithWildcards:
     def __init__(self):
+        # ✅ ComfyUI의 wildcards 폴더를 기본 경로로 설정
         self.base_path = os.path.join(folder_paths.base_path, "wildcards")
 
     def get_available_categories(self):
