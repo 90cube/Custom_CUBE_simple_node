@@ -9,16 +9,19 @@ def register_custom_nodes():
         CombineTextNode(),
         SimpleTextNode(),
         WildcardCategoryNode(),
+	CustomCubeSimpleNode()
     ]
 
 NODE_CLASS_MAPPINGS = {
     "CombineTextNode": CombineTextNode,
     "SimpleTextNode": SimpleTextNode,
     "WildcardCategoryNode": WildcardCategoryNode,
+    "CustomCubeSimpleNode": CustomCubeSimpleNode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "CombineTextNode": "Combine Text Node",
     "SimpleTextNode": "Simple Text Node",
     "WildcardCategoryNode": "🟦 Wildcard Selector",
+    "CustomCubeSimpleNode": "Custom Cube Simple Node"
 }
