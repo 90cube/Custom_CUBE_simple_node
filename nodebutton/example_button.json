@@ -1,0 +1,8 @@
+{
+    "buttons": {
+        "퀄리티프롬프트": ["masterpiece", "best quality"],
+        "디테일프롬프트": ["high detail", "intricate"],
+        "조명프롬프트": ["cinematic lighting", "soft shadows"],
+        "색상프롬프트": ["vivid colors", "high contrast"]
+    }
+}

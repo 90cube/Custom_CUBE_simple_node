@@ -14,7 +14,7 @@ class CB_TestNode:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("test",)
     FUNCTION = "test_function"
-    CATEGORY = "TEST/TEXT"
+    CATEGORY = "90cube"
 
     def test_function(self):
         return ("TEST",)
