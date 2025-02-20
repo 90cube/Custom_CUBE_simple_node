@@ -7,6 +7,7 @@ class CB_NodeButton:
     def __init__(self):
         self.buttons = {}
         self.ensure_json_folder_exists()
+        self.load_buttons_from_json()  # 노드 로드 시 JSON 파일에서 버튼 로드
 
     def ensure_json_folder_exists(self):
         if not os.path.exists(self.BASE_DIR):
@@ -18,7 +19,7 @@ class CB_NodeButton:
             with open(file_path, "r") as f:
                 data = json.load(f)
                 for title, prompts in data.get("buttons", {}).items():
-                    self.buttons[title] = (prompts, False)
+                    self.buttons[title] = (prompts, False)  # 버튼 활성화 상태는 False로 초기화
 
     def save_buttons_to_json(self, filename="comfyui_buttons.json"):
         file_path = os.path.join(self.BASE_DIR, filename)
@@ -29,14 +30,15 @@ class CB_NodeButton:
     @classmethod
     def INPUT_TYPES(cls):
         return {
-            "required": {},
+            "required": {
+                "load_from_json": ("STRING", {"default": "comfyui_buttons.json"}),  # JSON 파일명 입력
+                "save_to_json": ("STRING", {"default": ""}),  # 저장할 JSON 파일명 입력
+            },
             "optional": {
-                "add_prompt": ("STRING", {"default": ""}),
-                "button_label": ("STRING", {"default": ""}),
-                "toggle_button": ("STRING", {"default": ""}),
-                "load_from_json": ("STRING", {"default": "comfyui_buttons.json"}),
-                "save_json_file": ("STRING", {"default": "comfyui_buttons.json"}),
-                "save_to_json": ("BUTTON", {"label": "Save to JSON"}),
+                "add_prompt": ("STRING", {"default": ""}),  # 프롬프트 내용 입력
+                "button_label": ("STRING", {"default": ""}),  # 버튼 이름 입력
+                "toggle_button": ("STRING", {"default": ""}),  # 토글할 버튼 이름 입력
+                "save_to_json_button": ("BUTTON", {"label": "Save to JSON"}),  # JSON 저장 버튼
             }
         }
 
@@ -45,21 +47,26 @@ class CB_NodeButton:
     FUNCTION = "process_node"
     CATEGORY = "90cube"
 
-    def process_node(self, add_prompt: str = "", button_label: str = "", toggle_button: str = "", 
-                     load_from_json: str = "comfyui_buttons.json", save_json_file: str = "comfyui_buttons.json", 
-                     save_to_json: bool = False):
-        if load_from_json:
-            self.load_buttons_from_json(load_from_json)
-        
+    def process_node(self, load_from_json, save_to_json, add_prompt="", button_label="", 
+                     toggle_button="", save_to_json_button=False):
+
+        # JSON 파일 로드
+        self.load_buttons_from_json(load_from_json)
+
+        # 버튼 추가
         if add_prompt and button_label:
             self.buttons[button_label] = (add_prompt.split(", "), False)
-        
+
+        # 버튼 토글
         if toggle_button in self.buttons:
             prompt, state = self.buttons[toggle_button]
             self.buttons[toggle_button] = (prompt, not state)
-        
-        if save_to_json:
-            self.save_buttons_to_json(save_json_file)
-        
+
+        # JSON 파일 저장
+        if save_to_json_button and save_to_json:
+            self.save_buttons_to_json(save_to_json)
+
+        # 활성화된 프롬프트 출력
         active_prompts = [prompt for prompt, state in self.buttons.values() if state]
         return (", ".join(active_prompts),)
+}
