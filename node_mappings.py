@@ -10,7 +10,7 @@ NODE_CLASS_MAPPINGS = {
     "CB_TestNode": CB_TestNode,
     "CB_NodeButton": CB_NodeButton,
     "CB_AdvancedResizer": CB_AdvancedResizer,
-    "CB_RatioResizer": RatioResizer,
+    "CB_RatioResizer": CB_RatioResizer,
 
 }
 
