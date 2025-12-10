@@ -3,6 +3,8 @@ import { app } from "../../scripts/app.js";
 const CB_SETTING_ID = "cbPromptCarouselEnabled";
 const CB_SETTING_GUARD = "__cbPromptCarouselSettingRegistered";
 const CB_SETTING_DEFAULT = true;
+const NONE_LABEL = "None";
+const PREVIEW_WIDGET_NAME = "__cb_prompt_preview";
 
 const NODE_OPTION_MAP = {
     CB_HeadPromptNode: {
@@ -1248,6 +1250,13 @@ const NODE_OPTION_MAP = {
 
 };
 
+const CONNECTOR_MAP = {
+    CB_LegPromptNode: { legwear: "on legs" },
+    CB_ArmPromptNode: { armwear: "on arms" },
+    CB_HandPromptNode: { gloves: "on hands", held_item: "in hand" },
+    CB_FootPromptNode: { footwear: "on foot" },
+};
+
 function isCarouselEnabled() {
     const stored = localStorage.getItem(CB_SETTING_ID);
     return stored === null ? CB_SETTING_DEFAULT : stored === "true";
@@ -1279,19 +1288,162 @@ function clampIndex(index, length) {
     return (index + length) % length;
 }
 
+function normalizeValue(value) {
+    if (value === undefined || value === null) return "";
+    const cleaned = String(value).trim();
+    if (!cleaned || cleaned.toLowerCase() === NONE_LABEL.toLowerCase()) return "";
+    return cleaned;
+}
+
+function joinPrompt(parts) {
+    return parts.filter(Boolean).join(", ");
+}
+
+function withConnector(value, connector) {
+    const normalized = normalizeValue(value);
+    if (!normalized) return "";
+    const cleanedConnector = (connector || "").trim();
+    return cleanedConnector ? `${normalized} ${cleanedConnector}` : normalized;
+}
+
+function composePrompt(node, optionMap) {
+    if (!optionMap) return "";
+    const widgetMap = Object.fromEntries((node.widgets || []).map((w) => [w.name, w]));
+    const connectors = CONNECTOR_MAP[node.comfyClass] || {};
+    const parts = [];
+
+    const manual = normalizeValue(widgetMap.manual_input?.value ?? "");
+    if (manual) parts.push(manual);
+
+    Object.keys(optionMap).forEach((name) => {
+        const widgetVal = widgetMap[name]?.value ?? "";
+        const connected = connectors[name]
+            ? withConnector(widgetVal, connectors[name])
+            : normalizeValue(widgetVal);
+        if (connected) parts.push(connected);
+    });
+
+    return joinPrompt(parts);
+}
+
 function ensureWidgetValues(node) {
     if (!node.widgets_values) {
         node.widgets_values = (node.widgets || []).map((w) => w.value);
     }
 }
 
-function updateWidgetValue(node, widget, value) {
+function setWidgetValue(node, widget, value) {
     widget.value = value;
     ensureWidgetValues(node);
     const widgetIndex = node.widgets.indexOf(widget);
     if (widgetIndex !== -1) {
         node.widgets_values[widgetIndex] = value;
     }
+}
+
+function getWidgetByName(node, name) {
+    return (node.widgets || []).find((w) => w.name === name);
+}
+
+function wrapLines(ctx, text, maxWidth) {
+    const words = (text || "").split(/\s+/);
+    const lines = [];
+    let current = "";
+    words.forEach((word) => {
+        const candidate = current ? `${current} ${word}` : word;
+        if (current && ctx.measureText(candidate).width > maxWidth) {
+            lines.push(current);
+            current = word;
+        } else {
+            current = candidate;
+        }
+    });
+    if (current) lines.push(current);
+    return lines.length ? lines : [""];
+}
+
+function ensurePreviewWidget(node) {
+    let widget = getWidgetByName(node, PREVIEW_WIDGET_NAME);
+    if (widget) return widget;
+
+    widget = {
+        name: PREVIEW_WIDGET_NAME,
+        type: "cb-prompt-preview",
+        value: "",
+        last_height: 70,
+        serializeValue: () => widget.value,
+        computeSize: () => [node.size[0], widget.last_height || 70],
+    };
+
+    widget.draw = function (ctx, node, width, y) {
+        const padding = 8;
+        const labelHeight = 16;
+        const textHeight = 16;
+        ctx.save();
+        ctx.textBaseline = "top";
+        ctx.textAlign = "left";
+
+        const bgHeight = widget.last_height || 70;
+        ctx.fillStyle = "#1b1b1b";
+        ctx.fillRect(0, y, width, bgHeight);
+        ctx.strokeStyle = "#444";
+        ctx.strokeRect(0, y, width, bgHeight);
+
+        ctx.fillStyle = "#9ac7ff";
+        ctx.font = "bold 14px sans-serif";
+        ctx.fillText("Prompt Preview", padding, y + padding);
+
+        const text = widget.value || "(No prompt selected)";
+        ctx.font = "13px sans-serif";
+        const lines = wrapLines(ctx, text, width - padding * 2);
+        const contentStart = y + padding + labelHeight;
+        lines.forEach((line, idx) => {
+            ctx.fillStyle = "#ddd";
+            ctx.fillText(line, padding, contentStart + idx * textHeight);
+        });
+
+        const requiredHeight = padding + labelHeight + lines.length * textHeight + padding;
+        widget.last_height = Math.max(requiredHeight, 56);
+        ctx.restore();
+    };
+
+    if (!node.widgets) node.widgets = [];
+    node.widgets.push(widget);
+    ensureWidgetValues(node);
+    return widget;
+}
+
+function refreshPromptPreview(node) {
+    const optionMap = NODE_OPTION_MAP[node.comfyClass];
+    if (!optionMap) return;
+    const preview = ensurePreviewWidget(node);
+    const prompt = composePrompt(node, optionMap);
+    const estimatedLines = Math.max(1, Math.ceil((prompt || "(No prompt selected)").length / 48));
+    preview.last_height = Math.max(56, 32 + estimatedLines * 16);
+    setWidgetValue(node, preview, prompt);
+    node.setDirtyCanvas(true, true);
+}
+
+function wrapWidgetCallback(widget, node) {
+    if (!widget || widget.__cbPreviewWrapped) return;
+    const original = widget.callback;
+    widget.callback = function (...args) {
+        const result = original ? original.apply(this, args) : undefined;
+        setWidgetValue(node, widget, widget.value);
+        refreshPromptPreview(node);
+        return result;
+    };
+    widget.__cbPreviewWrapped = true;
+}
+
+function bindPreviewCallbacks(node, optionMap) {
+    const names = ["manual_input", ...Object.keys(optionMap || {})];
+    names.forEach((name) => wrapWidgetCallback(getWidgetByName(node, name), node));
+}
+
+function updateWidgetValue(node, widget, value) {
+    setWidgetValue(node, widget, value);
+    refreshPromptPreview(node);
     node.setDirtyCanvas(true, true);
 }
 
@@ -1389,12 +1541,18 @@ app.registerExtension({
     name: "custom.cb.additional_prompts.carousel",
     nodeCreated(node) {
         registerCarouselSetting();
-        if (!isCarouselEnabled()) return;
         const optionMap = NODE_OPTION_MAP[node.comfyClass];
-        if (optionMap) {
-            ensureWidgetValues(node);
+        if (!optionMap) return;
+
+        ensureWidgetValues(node);
+        ensurePreviewWidget(node);
+        bindPreviewCallbacks(node, optionMap);
+
+        if (isCarouselEnabled()) {
             setupCarouselWidgets(node, optionMap);
         }
+
+        refreshPromptPreview(node);
     },
 });
 
